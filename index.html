@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
 <title>狼人杀</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -37,7 +38,7 @@ input:focus,select:focus{border-color:var(--accent)}
 .player-card.selected{border:2px solid var(--gold);background:#2a2a5a}
 .player-card.selected .avatar{border-color:var(--gold)}
 .message-box{background:var(--bg2);border-radius:12px;padding:20px;max-width:500px;width:100%;margin:10px 0;text-align:center;line-height:1.6}
-.log-area{background:var(--bg2);border-radius:12px;padding:15px;max-width:600px;width:100%;margin:10px 0;max-height:250px;overflow-y:auto;font-size:.9em;line-height:1.8}
+.log-area{background:var(--bg2);border-radius:12px;padding:15px;max-width:600px;width:100%;margin:10px 0;max-height:250px;overflow-y:auto;font-size:.9em;line-height:1.8;scroll-behavior:smooth}
 .log-area .log-entry{padding:3px 0;border-bottom:1px solid #333}
 .log-area .log-entry:last-child{border-bottom:none}
 .night-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,20,.7);display:none;z-index:5;pointer-events:none}
@@ -256,7 +257,7 @@ function showNextRoleReveal() {
   var wolfInfo = document.getElementById('wolfInfo');
   if (p.role === '狼人') {
     var mates = G.players.filter(function(q) { return q.role === '狼人' && q.id !== p.id; })
-      .map(function(q) { return (q.id+1) + '号 ' + q.name; });
+      .map(function(q) { return (q.id+1) + '号 ' + esc(q.name); });
     wolfInfo.style.display = '';
     wolfInfo.textContent = '你的狼人同伴：' + mates.join('、');
   } else {
@@ -313,7 +314,7 @@ function renderPlayers(opts) {
     }
 
     div.innerHTML = '<div class="avatar" style="background:' + bgColor + ';border-color:' + borderColor + '">' +
-      icon + '</div><div class="name">' + (p.id+1) + '号 ' + p.name + '</div>' + roleTag;
+      icon + '</div><div class="name">' + (p.id+1) + '号 ' + esc(p.name) + '</div>' + roleTag;
 
     if (canSelect) {
       (function(pid) {
@@ -338,7 +339,10 @@ function setButtons(btns) {
     btn.textContent = b.text;
     btn.className = b.cls || '';
     if (b.disabled) btn.disabled = true;
-    btn.addEventListener('click', b.onClick);
+    btn.addEventListener('click', function(e) {
+      area.querySelectorAll('button').forEach(function(x) { x.disabled = true; });
+      b.onClick(e);
+    });
     area.appendChild(btn);
   });
 }
@@ -364,6 +368,12 @@ function setBanner(text, isNight) {
 }
 
 // ============ 工具函数 ============
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 function shuffle(arr) {
   for (var i = arr.length - 1; i > 0; i--) {
     var j = Math.floor(Math.random() * (i + 1));
@@ -418,7 +428,7 @@ async function phaseGuard() {
   } else {
     // 人类守卫 - 显示交接提示
     var excludeList = G.lastGuardTarget >= 0 ? [G.lastGuardTarget] : [];
-    setAction('<h3>🛡️ 守卫 ' + guard.name + '，请选择守护目标</h3>' +
+    setAction('<h3>🛡️ 守卫 ' + esc(guard.name) + '，请选择守护目标</h3>' +
       '<p style="color:var(--text2)">不能连续两晚守护同一人' +
       (G.lastGuardTarget >= 0 ? '（上晚守了' + (G.lastGuardTarget+1) + '号）' : '') + '</p>');
 
@@ -480,8 +490,8 @@ async function phaseWolf() {
     await phaseWitch();
   } else {
     var hw = humanWolves[0];
-    var wolfNames = ws.map(function(w) { return (w.id+1) + '号' + w.name; }).join('、');
-    setAction('<h3>🐺 狼人 ' + hw.name + '，请选择击杀目标</h3>' +
+    var wolfNames = ws.map(function(w) { return (w.id+1) + '号' + esc(w.name); }).join('、');
+    setAction('<h3>🐺 狼人 ' + esc(hw.name) + '，请选择击杀目标</h3>' +
       '<div class="wolf-info">狼人同伴：' + wolfNames + '</div>' +
       '<p style="color:var(--text2)">只能选择非狼人玩家</p>');
 
@@ -508,7 +518,9 @@ async function phaseWitch() {
       G.witchSaved = true;
       G.wolfKillTarget = -1;
     } else if (canPoison && G.day >= 2 && Math.random() < 0.3) {
-      var pool = alive().filter(function(p) { return p.id !== witch.id; });
+      var wolvesAlive = alive().filter(function(p) { return p.role === '狼人' && p.id !== witch.id; });
+      var pool = wolvesAlive.length > 0 ? wolvesAlive :
+        alive().filter(function(p) { return p.id !== witch.id && p.role !== '预言家' && p.role !== '女巫'; });
       if (pool.length > 0) {
         G.witchPoisonTarget = pick(pool).id;
         G.witchPoisoned = true;
@@ -524,10 +536,10 @@ async function phaseWitch() {
 function humanWitchAction(witch, canSave, canPoison) {
   return new Promise(function(resolve) {
     function showMainMenu() {
-      var html = '<h3>🧙‍♀️ 女巫 ' + witch.name + '，请决定用药</h3>';
+      var html = '<h3>🧙‍♀️ 女巫 ' + esc(witch.name) + '，请决定用药</h3>';
       if (canSave) {
         var victim = G.players[G.wolfKillTarget];
-        html += '<p>今晚 <b style="color:var(--accent)">' + (victim.id+1) + '号 ' + victim.name + '</b> 被狼人杀害</p>';
+        html += '<p>今晚 <b style="color:var(--accent)">' + (victim.id+1) + '号 ' + esc(victim.name) + '</b> 被狼人杀害</p>';
       }
       html += '<p style="color:var(--text2)">解药' + (canSave ? '✅可用' : '❌已用') +
         ' | 毒药' + (canPoison ? '✅可用' : '❌已用') + '</p>';
@@ -602,17 +614,16 @@ async function phaseSeer() {
     }
     resolveNight();
   } else {
-    setAction('<h3>🔮 预言家 ' + seer.name + '，请选择查验目标</h3>');
+    setAction('<h3>🔮 预言家 ' + esc(seer.name) + '，请选择查验目标</h3>');
 
     var chosen = await waitPlayerSelect([seer.id], '确认查验');
-    var target = G.players[chosen];
-    var isWolf = target.role === '狼人';
+    let target = G.players[chosen];
+    let isWolf = target.role === '狼人';
     G.seerChecked.push({ id: chosen, isWolf: isWolf });
 
-    // 显示结果
     var resultColor = isWolf ? 'var(--danger)' : 'var(--safe)';
     var resultText = isWolf ? '🐺 狼人' : '👤 好人';
-    setAction('<h3>🔮 查验结果</h3><p><b>' + (target.id+1) + '号 ' + target.name +
+    setAction('<h3>🔮 查验结果</h3><p><b>' + (target.id+1) + '号 ' + esc(target.name) +
       '</b> 的身份是：<b style="color:' + resultColor + '"> ' + resultText + '</b></p>');
 
     await new Promise(function(resolve) {
@@ -673,10 +684,11 @@ async function startDay() {
     setAction('<h3>☀️ 昨晚是平安夜，无人死亡</h3>');
     addPublicLog('昨晚是平安夜');
   } else {
-    var names = G.pendingDeaths.map(function(id) { return (id+1) + '号 ' + G.players[id].name; });
+    var names = G.pendingDeaths.map(function(id) { return (id+1) + '号 ' + esc(G.players[id].name); });
     setAction('<h3>☀️ 昨晚死亡</h3><p style="color:var(--danger);font-size:1.2em">' +
       names.join('、') + ' 倒下了</p>');
-    addPublicLog('昨晚死亡：' + names.join('、'));
+    var logNames = G.pendingDeaths.map(function(id) { return (id+1) + '号 ' + G.players[id].name; });
+    addPublicLog('昨晚死亡：' + logNames.join('、'));
   }
   renderPlayers({});
 
@@ -700,17 +712,18 @@ async function hunterShoot(hunter) {
   if (hunter.isAI) {
     await delay(800);
     var pool = alive().filter(function(p) { return p.id !== hunter.id; });
+    var wolfPool = pool.filter(function(p) { return p.role === '狼人'; });
     if (pool.length > 0) {
-      var target = pick(pool);
+      var target = wolfPool.length > 0 ? pick(wolfPool) : pick(pool);
       target.alive = false;
       addPublicLog('猎人 ' + hunter.name + ' 开枪带走了 ' + (target.id+1) + '号 ' + target.name);
-      setAction('<h3>🏹 猎人 ' + hunter.name + ' 发动技能</h3>' +
-        '<p>开枪带走了 <b style="color:var(--danger)">' + (target.id+1) + '号 ' + target.name + '</b></p>');
+      setAction('<h3>🏹 猎人 ' + esc(hunter.name) + ' 发动技能</h3>' +
+        '<p>开枪带走了 <b style="color:var(--danger)">' + (target.id+1) + '号 ' + esc(target.name) + '</b></p>');
       renderPlayers({});
       await delay(1500);
     }
   } else {
-    setAction('<h3>🏹 猎人 ' + hunter.name + '，你可以开枪带走一名玩家</h3>');
+    setAction('<h3>🏹 猎人 ' + esc(hunter.name) + '，你可以开枪带走一名玩家</h3>');
     var chosen = await waitPlayerSelect([hunter.id], '确认开枪', true, '不开枪');
     if (chosen >= 0) {
       G.players[chosen].alive = false;
@@ -739,10 +752,10 @@ async function phaseSpeech() {
     if (p.isAI) {
       var sp = G.aiSpeeches.find(function(s) { return s.id === p.id; });
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
-        (p.id+1) + '号 ' + p.name + ' (AI)</div>' + sp.text + '</div>';
+        (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + esc(sp.text) + '</div>';
     } else {
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
-        (p.id+1) + '号 ' + p.name + '</div>（真人玩家，请口头发言）</div>';
+        (p.id+1) + '号 ' + esc(p.name) + '</div>（真人玩家，请口头发言）</div>';
     }
   });
 
@@ -825,7 +838,7 @@ async function phaseVote() {
   // 真人逐个投票
   for (var i = 0; i < humanAlive.length; i++) {
     var hp = humanAlive[i];
-    setAction('<h3>🗳️ ' + hp.name + '，请投票选择放逐目标</h3>' +
+    setAction('<h3>🗳️ ' + esc(hp.name) + '，请投票选择放逐目标</h3>' +
       '<p style="color:var(--text2)">不能投自己</p>');
     votes[hp.id] = await waitPlayerSelect([hp.id], '确认投票', true, '弃票');
   }
@@ -861,7 +874,7 @@ async function phaseVote() {
   if (maxIds.length === 1 && maxVotes > 0) {
     var exiled = G.players[maxIds[0]];
     resultHtml += '<p style="margin-top:10px"><b style="color:var(--danger)">' +
-      (exiled.id+1) + '号 ' + exiled.name + '</b> 以' + maxVotes + '票被放逐</p>';
+      (exiled.id+1) + '号 ' + esc(exiled.name) + '</b> 以' + maxVotes + '票被放逐</p>';
     addPublicLog('投票结果：' + (exiled.id+1) + '号 ' + exiled.name + ' 被放逐（' + maxVotes + '票）');
 
     setAction(resultHtml);
@@ -940,7 +953,7 @@ function showResult(winner) {
     div.className = 'player-card' + (p.alive ? '' : ' dead');
     div.innerHTML = '<div class="avatar" style="background:var(--bg3);border-color:' + campColor + '">' +
       ROLE_ICONS[p.role] + '</div>' +
-      '<div class="name">' + (p.id+1) + '号 ' + p.name + '</div>' +
+      '<div class="name">' + (p.id+1) + '号 ' + esc(p.name) + '</div>' +
       '<div class="role-tag" style="color:' + campColor + '">' + p.role + '</div>' +
       '<div class="role-tag">' + (p.alive ? '存活' : '死亡') + (p.isAI ? ' (AI)' : '') + '</div>';
     area.appendChild(div);
