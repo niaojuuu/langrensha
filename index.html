@@ -330,6 +330,12 @@ function setAction(html) {
   var el = document.getElementById('gameAction');
   el.innerHTML = html;
   el.style.display = html ? '' : 'none';
+  if (html) {
+    clearTimeout(setAction._t);
+    setAction._t = setTimeout(function() {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 150);
+  }
 }
 
 function setButtons(btns) {
@@ -518,7 +524,11 @@ async function phaseWitch() {
       G.witchSaved = true;
       G.wolfKillTarget = -1;
     } else if (canPoison && G.day >= 2 && Math.random() < 0.3) {
-      var pool = alive().filter(function(p) { return p.id !== witch.id; });
+      var knownWolves = G.seerChecked
+        .filter(function(c) { return c.isWolf && G.players[c.id].alive && c.id !== witch.id; })
+        .map(function(c) { return G.players[c.id]; });
+      var pool = knownWolves.length > 0 ? knownWolves :
+        alive().filter(function(p) { return p.id !== witch.id && p.id !== G.wolfKillTarget; });
       if (pool.length > 0) {
         G.witchPoisonTarget = pick(pool).id;
         G.witchPoisoned = true;
@@ -612,7 +622,20 @@ async function phaseSeer() {
     }
     resolveNight();
   } else {
-    setAction('<h3>🔮 预言家 ' + esc(seer.name) + '，请选择查验目标</h3>');
+    var histHtml = '';
+    if (G.seerChecked.length > 0) {
+      histHtml = '<div style="margin-top:10px;font-size:0.85em">' +
+        '<p style="color:var(--text2);margin-bottom:5px">📋 已查验记录：</p>';
+      G.seerChecked.forEach(function(c) {
+        var clr = c.isWolf ? 'var(--danger)' : 'var(--safe)';
+        var lbl = c.isWolf ? '🐺 狼人' : '👤 好人';
+        var st = G.players[c.id].alive ? '' : ' (已死亡)';
+        histHtml += '<span style="display:inline-block;background:var(--card);padding:4px 10px;border-radius:6px;margin:2px;border-left:3px solid ' + clr + '">' +
+          (c.id+1) + '号 ' + esc(G.players[c.id].name) + '：<b style="color:' + clr + '">' + lbl + '</b>' + st + '</span> ';
+      });
+      histHtml += '</div>';
+    }
+    setAction('<h3>🔮 预言家 ' + esc(seer.name) + '，请选择查验目标</h3>' + histHtml);
 
     var chosen = await waitPlayerSelect([seer.id], '确认查验');
     var target = G.players[chosen];
@@ -731,6 +754,60 @@ async function hunterShoot(hunter) {
     }
     renderPlayers({});
   }
+}
+
+// -- 遗言阶段 --
+async function lastWordsPhase(player) {
+  if (player.isAI) {
+    var words = generateLastWords(player);
+    setAction('<h3>💀 ' + (player.id+1) + '号 ' + esc(player.name) + ' 的遗言</h3>' +
+      '<div class="speech-bubble"><div class="speaker">' + (player.id+1) + '号 ' + esc(player.name) + ' (AI)</div>' + words + '</div>');
+    renderPlayers({});
+    await new Promise(function(resolve) {
+      setButtons([{ text: '继续', cls: 'success', onClick: resolve }]);
+    });
+  } else {
+    setAction('<h3>💀 ' + (player.id+1) + '号 ' + esc(player.name) + '，请发表遗言</h3>' +
+      '<p style="color:var(--text2)">请口头发表你的遗言</p>');
+    renderPlayers({});
+    await new Promise(function(resolve) {
+      setButtons([{ text: '遗言结束', cls: 'success', onClick: resolve }]);
+    });
+  }
+}
+
+function generateLastWords(player) {
+  var templates = {
+    '狼人': [
+      '我是好人，你们投错了！后面好好看清楚谁是狼！',
+      '哎，是你们的损失，我走了。',
+      '好吧，我尊重投票结果。希望好人能赢。',
+      '你们会后悔的，真正的狼还在场上。',
+    ],
+    '预言家': [
+      '我是预言家！你们投错人了，请记住我的查验信息！',
+      '我的查验结果不会骗人，希望你们能记住。',
+    ],
+    '女巫': [
+      '你们投了一个神职，这对好人阵营是重大损失。',
+      '我走了，你们好自为之吧。',
+    ],
+    '猎人': [
+      '好，你们等着看我的操作吧。',
+      '我有话要说——等一下你们就知道了。',
+    ],
+    '守卫': [
+      '没有我的保护，你们晚上要小心了。',
+      '我是好人，但我尊重大家的选择。',
+    ],
+    '平民': [
+      '我就是个平民，没什么好说的，祝好人好运。',
+      '冤枉啊！我是平民，你们搞错了。',
+      '好吧，我走了。希望你们找到真正的狼。',
+    ]
+  };
+  var pool = templates[player.role] || templates['平民'];
+  return pick(pool);
 }
 
 // -- 发言阶段 --
@@ -882,6 +959,8 @@ async function phaseVote() {
     setButtons([{ text: '继续', cls: 'success', onClick: async function() {
       exiled.alive = false;
       renderPlayers({});
+
+      await lastWordsPhase(exiled);
 
       if (exiled.role === '猎人') {
         await hunterShoot(exiled);
