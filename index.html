@@ -206,7 +206,7 @@ function startGame() {
   const names = [];
   for (let i = 0; i < humanCount; i++) {
     const input = document.getElementById('pname' + i);
-    names.push(input.value.trim() || ('玩家' + (i+1)));
+    names.push(input.value.trim().replace(/[<>"'&]/g, '') || ('玩家' + (i+1)));
   }
   const aiNames = ['小明','小红','小刚','小丽','阿强','阿花','大壮','小美','老王','小李','阿杰','小云'];
   shuffle(aiNames);
@@ -340,8 +340,8 @@ function setButtons(btns) {
     btn.className = b.cls || '';
     if (b.disabled) btn.disabled = true;
     btn.addEventListener('click', function() {
+      if (b.onClick() === false) return;
       area.querySelectorAll('button').forEach(function(el) { el.disabled = true; });
-      b.onClick();
     });
     area.appendChild(btn);
   });
@@ -360,7 +360,8 @@ function addPublicLog(text) {
 
 function setBanner(text, isNight) {
   var b = document.getElementById('phaseBanner');
-  b.textContent = text;
+  var aliveCount = G.players && G.players.length > 0 ? G.players.filter(function(p) { return p.alive; }).length : 0;
+  b.innerHTML = esc(text) + (G.players && G.players.length > 0 ? '<div style="font-size:0.5em;color:var(--text2);margin-top:4px">存活 ' + aliveCount + '/12</div>' : '');
   b.className = 'phase-banner ' + (isNight ? 'night' : 'day');
   var overlay = document.getElementById('nightOverlay');
   if (isNight) overlay.classList.add('show');
@@ -449,7 +450,7 @@ function waitPlayerSelect(excludeIds, confirmText, allowSkip, skipText) {
     var btns = [{
       text: confirmText || '确认',
       cls: 'success',
-      onClick: function() { if (chosen >= 0) resolve(chosen); }
+      onClick: function() { if (chosen >= 0) resolve(chosen); else return false; }
     }];
     if (allowSkip) {
       btns.push({
@@ -577,7 +578,7 @@ function humanWitchAction(witch, canSave, canPoison) {
       doRender(-1);
       setButtons([
         { text: '确认毒杀', cls: '', onClick: function() {
-          if (chosen < 0) return;
+          if (chosen < 0) return false;
           G.witchPoisonTarget = chosen;
           G.witchPoisoned = true;
           resolve();
@@ -706,7 +707,10 @@ async function hunterShoot(hunter) {
     await delay(800);
     var pool = alive().filter(function(p) { return p.id !== hunter.id; });
     if (pool.length > 0) {
-      var target = pick(pool);
+      var knownWolves = G.seerChecked
+        .filter(function(c) { return c.isWolf && G.players[c.id].alive && c.id !== hunter.id; })
+        .map(function(c) { return G.players[c.id]; });
+      var target = knownWolves.length > 0 ? pick(knownWolves) : pick(pool);
       target.alive = false;
       addPublicLog('猎人 ' + hunter.name + ' 开枪带走了 ' + (target.id+1) + '号 ' + target.name);
       setAction('<h3>🏹 猎人 ' + esc(hunter.name) + ' 发动技能</h3>' +
