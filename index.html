@@ -136,6 +136,7 @@ input:focus,select:focus{border-color:var(--accent)}
   <div id="gameAction" class="message-box"></div>
   <div id="actionButtons" class="btn-row"></div>
   <div id="gameLog" class="log-area" style="display:none"></div>
+  <button onclick="if(confirm('确定要重新开始吗？当前游戏进度将丢失'))location.reload()" class="small secondary" style="margin-top:15px;opacity:0.6">重新开始</button>
 </div>
 
 <!-- 结果界面 -->
@@ -334,6 +335,7 @@ function setAction(html) {
 function setButtons(btns) {
   var area = document.getElementById('actionButtons');
   area.innerHTML = '';
+  var currentBtns = [];
   btns.forEach(function(b) {
     var btn = document.createElement('button');
     btn.textContent = b.text;
@@ -341,8 +343,9 @@ function setButtons(btns) {
     if (b.disabled) btn.disabled = true;
     btn.addEventListener('click', function() {
       if (b.onClick() === false) return;
-      area.querySelectorAll('button').forEach(function(el) { el.disabled = true; });
+      currentBtns.forEach(function(el) { el.disabled = true; });
     });
+    currentBtns.push(btn);
     area.appendChild(btn);
   });
 }
@@ -510,7 +513,8 @@ async function phaseWitch() {
     setAction('<p class="ai-thinking">女巫正在行动<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></p>');
     setButtons([]);
     await delay(1000);
-    if (canSave && G.day === 1 && Math.random() < 0.8) {
+    var saveChance = G.day === 1 ? 0.8 : 0.35;
+    if (canSave && G.wolfKillTarget >= 0 && Math.random() < saveChance) {
       G.witchSaved = true;
       G.wolfKillTarget = -1;
     } else if (canPoison && G.day >= 2 && Math.random() < 0.3) {
@@ -603,7 +607,7 @@ async function phaseSeer() {
     var checkedIds = G.seerChecked.map(function(c) { return c.id; });
     var pool = alive().filter(function(p) { return p.id !== seer.id && checkedIds.indexOf(p.id) === -1; });
     if (pool.length > 0) {
-      let checked = pick(pool);
+      var checked = pick(pool);
       G.seerChecked.push({ id: checked.id, isWolf: checked.role === '狼人' });
     }
     resolveNight();
@@ -611,7 +615,7 @@ async function phaseSeer() {
     setAction('<h3>🔮 预言家 ' + esc(seer.name) + '，请选择查验目标</h3>');
 
     var chosen = await waitPlayerSelect([seer.id], '确认查验');
-    let target = G.players[chosen];
+    var target = G.players[chosen];
     var isWolf = target.role === '狼人';
     G.seerChecked.push({ id: chosen, isWolf: isWolf });
 
