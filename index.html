@@ -519,7 +519,8 @@ async function phaseWitch() {
     setAction('<p class="ai-thinking">女巫正在行动<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></p>');
     setButtons([]);
     await delay(1000);
-    var saveChance = G.day === 1 ? 0.8 : 0.35;
+    var isSelfTargeted = G.wolfKillTarget === witch.id;
+    var saveChance = isSelfTargeted ? 1.0 : (G.day === 1 ? 0.8 : 0.35);
     if (canSave && G.wolfKillTarget >= 0 && Math.random() < saveChance) {
       G.witchSaved = true;
       G.wolfKillTarget = -1;
@@ -581,10 +582,12 @@ function humanWitchAction(witch, canSave, canPoison) {
     function showPoisonSelect() {
       setAction('<h3>🧙‍♀️ 请选择毒杀目标</h3>');
       var chosen = -1;
+      var poisonExclude = [witch.id];
+      if (G.wolfKillTarget >= 0) poisonExclude.push(G.wolfKillTarget);
       function doRender(sel) {
         renderPlayers({
           selectable: true,
-          exclude: [witch.id],
+          exclude: poisonExclude,
           selected: sel >= 0 ? [sel] : [],
           onSelect: function(id) { chosen = id; doRender(id); }
         });
@@ -882,7 +885,13 @@ function generateSpeech(player) {
   var pool = templates[player.role] || templates['平民'];
   var text = pick(pool);
 
-  var others = alive().filter(function(p) { return p.id !== player.id; });
+  var accusePool = alive().filter(function(p) {
+    if (p.id === player.id) return false;
+    if (player.role === '狼人' && p.role === '狼人') return false;
+    return true;
+  });
+  var fallbackPool = alive().filter(function(p) { return p.id !== player.id; });
+  var others = accusePool.length > 0 ? accusePool : fallbackPool;
   if (others.length > 0) {
     text = text.replace(/\{random\}/g, function() { return pick(others).id + 1; });
   }
@@ -891,6 +900,12 @@ function generateSpeech(player) {
     var last = G.seerChecked[G.seerChecked.length - 1];
     text = text.replace(/\{checked\}/g, last.id + 1);
     text = text.replace(/\{result\}/g, last.isWolf ? '狼人' : '好人');
+    if (G.seerChecked.length > 1) {
+      var historyParts = G.seerChecked.map(function(c) {
+        return (c.id + 1) + '号' + (c.isWolf ? '狼' : '好人');
+      });
+      text += ' 我的完整查验记录：' + historyParts.join('，') + '。';
+    }
   } else {
     text = text.replace(/\{checked\}/g, '某').replace(/\{result\}/g, '好人');
   }
@@ -947,6 +962,14 @@ async function phaseVote() {
   resultHtml += '<div class="vote-result">' +
     voteDisplay.map(function(v) { return '<span class="vote-chip">' + v + '</span>'; }).join('') +
     '</div>';
+  var tallyParts = [];
+  Object.keys(voteCount).sort(function(a, b) { return voteCount[b] - voteCount[a]; }).forEach(function(tid) {
+    var p = G.players[parseInt(tid)];
+    tallyParts.push((p.id+1) + '号 ' + esc(p.name) + '：<b>' + voteCount[tid] + '票</b>');
+  });
+  if (tallyParts.length > 0) {
+    resultHtml += '<div style="margin-top:8px;color:var(--text2);font-size:0.9em">票数统计：' + tallyParts.join(' | ') + '</div>';
+  }
 
   if (maxIds.length === 1 && maxVotes > 0) {
     var exiled = G.players[maxIds[0]];
@@ -1021,8 +1044,10 @@ function showResult(winner) {
     titleEl.style.color = 'var(--accent)';
   }
 
+  var logHtml = G.publicLogs.map(function(l) { return '<div class="log-entry">' + esc(l) + '</div>'; }).join('');
   document.getElementById('resultInfo').innerHTML =
-    '<h3>最终结果</h3><p>游戏持续了 ' + G.day + ' 天</p>';
+    '<h3>最终结果</h3><p>游戏持续了 ' + G.day + ' 天</p>' +
+    '<div class="log-area" style="max-height:200px;margin-top:12px;text-align:left">' + logHtml + '</div>';
 
   var area = document.getElementById('resultPlayers');
   area.innerHTML = '';
