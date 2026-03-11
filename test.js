@@ -114,7 +114,7 @@ async function test() {
   assert('resolveNight -> startDay', js.includes('startDay()') && js.indexOf('startDay()') > js.indexOf('resolveNight'));
   assert('Day has speech phase', js.includes('await phaseSpeech()'));
   assert('Speech has vote phase', js.includes('phaseVote()'));
-  assert('Vote can loop to night', js.includes("onClick: function() { startNight();"));
+  assert('Vote can loop to night', js.includes("return startNight();"));
 
   // Test 9: Win conditions
   console.log('🔍 测试9: 胜负判定');
