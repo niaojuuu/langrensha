@@ -1116,10 +1116,7 @@ function showResult(winner) {
   });
 }
 
-window.addEventListener('unhandledrejection', function(e) {
-  console.error('Unhandled game error:', e.reason);
-  document.querySelectorAll('button:disabled').forEach(function(b) { b.disabled = false; });
-});
+
 </script>
 </body>
 </html>

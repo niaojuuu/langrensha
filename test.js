@@ -60,7 +60,8 @@ async function test() {
     'startNight', 'phaseGuard', 'phaseWolf', 'phaseWitch', 'phaseSeer',
     'resolveNight', 'startDay', 'hunterShoot', 'phaseSpeech', 'phaseVote',
     'generateSpeech', 'aiVote', 'showResult', 'waitPlayerSelect',
-    'humanWitchAction', 'checkWin', 'shuffle', 'addPublicLog'
+    'humanWitchAction', 'checkWin', 'shuffle', 'addPublicLog',
+    'lastWordsPhase', 'generateLastWords'
   ];
   requiredFns.forEach(fn => {
     assert('Function: ' + fn, res.body.includes('function ' + fn));
