@@ -348,8 +348,15 @@ function setButtons(btns) {
     btn.className = b.cls || '';
     if (b.disabled) btn.disabled = true;
     btn.addEventListener('click', function() {
-      if (b.onClick() === false) return;
+      var result = b.onClick();
+      if (result === false) return;
       currentBtns.forEach(function(el) { el.disabled = true; });
+      if (result && typeof result.catch === 'function') {
+        result.catch(function(err) {
+          console.error('Game error:', err);
+          currentBtns.forEach(function(el) { el.disabled = false; });
+        });
+      }
     });
     currentBtns.push(btn);
     area.appendChild(btn);
@@ -841,7 +848,7 @@ async function phaseSpeech() {
 
   setAction(speechHtml);
   renderPlayers({});
-  setButtons([{ text: '进入投票', cls: 'success', onClick: function() { phaseVote(); } }]);
+  setButtons([{ text: '进入投票', cls: 'success', onClick: function() { return phaseVote(); } }]);
 }
 
 // AI发言生成
@@ -1003,7 +1010,11 @@ async function phaseVote() {
     }
     setAction(resultHtml);
     renderPlayers({});
-    setButtons([{ text: '进入夜晚', cls: 'success', onClick: function() { startNight(); } }]);
+    setButtons([{ text: '进入夜晚', cls: 'success', onClick: function() {
+      var win = checkWin();
+      if (win) { showResult(win); return; }
+      return startNight();
+    } }]);
   }
 }
 
@@ -1063,6 +1074,11 @@ function showResult(winner) {
     area.appendChild(div);
   });
 }
+
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('Unhandled game error:', e.reason);
+  document.querySelectorAll('button:disabled').forEach(function(b) { b.disabled = false; });
+});
 </script>
 </body>
 </html>
