@@ -107,6 +107,14 @@ input:focus,select:focus{border-color:var(--accent)}
         <option value="12">12</option>
       </select>
     </div>
+    <div id="speedRow" class="setup-row" style="display:none">
+      <label>演示速度</label>
+      <select id="autoSpeed">
+        <option value="800">快速</option>
+        <option value="1500" selected>正常</option>
+        <option value="3000">慢速</option>
+      </select>
+    </div>
     <div id="nameInputs" style="margin-top:15px"></div>
   </div>
   <button onclick="startGame()" style="margin-top:15px">开始游戏</button>
@@ -136,6 +144,9 @@ input:focus,select:focus{border-color:var(--accent)}
   <div id="gameAction" class="message-box"></div>
   <div id="actionButtons" class="btn-row"></div>
   <div id="gameLog" class="log-area" style="display:none"></div>
+  <div id="autoAdvanceBar" style="display:none;margin-top:15px">
+    <button onclick="toggleAutoAdvance()" id="btnAutoToggle" class="small" style="background:var(--green)">⏸ 暂停</button>
+  </div>
   <button onclick="if(confirm('确定要重新开始吗？当前游戏进度将丢失'))location.reload()" class="small secondary" style="margin-top:15px;opacity:0.6">重新开始</button>
 </div>
 
@@ -173,6 +184,8 @@ function initGameState() {
     phase: '',
     publicLogs: [],     // 公开日志（所有人可见）
     publicSuspects: [], // 通过发言公开暴露的狼人嫌疑人ID
+    autoAdvance: false,
+    autoDelay: 1500,
     wolfKillTarget: -1,
     guardTarget: -1,
     lastGuardTarget: -1,
@@ -193,6 +206,7 @@ document.getElementById('humanCount').addEventListener('change', function() {
   const n = parseInt(this.value);
   const div = document.getElementById('nameInputs');
   div.innerHTML = '';
+  document.getElementById('speedRow').style.display = n === 0 ? '' : 'none';
   for (let i = 0; i < n; i++) {
     const row = document.createElement('div');
     row.className = 'setup-row';
@@ -205,6 +219,10 @@ document.getElementById('humanCount').dispatchEvent(new Event('change'));
 function startGame() {
   initGameState();
   const humanCount = parseInt(document.getElementById('humanCount').value);
+  if (humanCount === 0) {
+    G.autoAdvance = true;
+    G.autoDelay = parseInt(document.getElementById('autoSpeed').value) || 1500;
+  }
   const names = [];
   for (let i = 0; i < humanCount; i++) {
     const input = document.getElementById('pname' + i);
@@ -342,6 +360,7 @@ function setAction(html) {
 function setButtons(btns) {
   var area = document.getElementById('actionButtons');
   area.innerHTML = '';
+  clearTimeout(setButtons._autoTimer);
   var currentBtns = [];
   btns.forEach(function(b) {
     var btn = document.createElement('button');
@@ -349,6 +368,7 @@ function setButtons(btns) {
     btn.className = b.cls || '';
     if (b.disabled) btn.disabled = true;
     btn.addEventListener('click', function() {
+      clearTimeout(setButtons._autoTimer);
       var result = b.onClick();
       if (result === false) return;
       currentBtns.forEach(function(el) { el.disabled = true; });
@@ -362,6 +382,12 @@ function setButtons(btns) {
     currentBtns.push(btn);
     area.appendChild(btn);
   });
+  if (G.autoAdvance && currentBtns.length > 0) {
+    setButtons._autoTimer = setTimeout(function() {
+      var btn = currentBtns.find(function(b) { return !b.disabled; });
+      if (btn) btn.click();
+    }, G.autoDelay);
+  }
 }
 
 function addPublicLog(text) {
@@ -418,6 +444,10 @@ async function startNight() {
   G.guardTarget = -1;
   G.witchPoisonTarget = -1;
   G.pendingDeaths = [];
+
+  if (G.autoAdvance && G.day === 1) {
+    document.getElementById('autoAdvanceBar').style.display = '';
+  }
 
   setBanner('第' + G.day + '天 · 夜晚', true);
   addPublicLog('── 第' + G.day + '天 夜晚 ──');
@@ -1080,6 +1110,24 @@ function showResult(winner) {
       '<div class="role-tag">' + (p.alive ? '存活' : '死亡') + (p.isAI ? ' (AI)' : '') + '</div>';
     area.appendChild(div);
   });
+}
+
+function toggleAutoAdvance() {
+  G.autoAdvance = !G.autoAdvance;
+  var btn = document.getElementById('btnAutoToggle');
+  if (G.autoAdvance) {
+    btn.textContent = '⏸ 暂停';
+    btn.style.background = 'var(--green)';
+    var activeBtn = document.querySelector('#actionButtons button:not(:disabled)');
+    if (activeBtn) {
+      clearTimeout(setButtons._autoTimer);
+      setButtons._autoTimer = setTimeout(function() { activeBtn.click(); }, G.autoDelay);
+    }
+  } else {
+    btn.textContent = '▶ 继续自动';
+    btn.style.background = 'var(--bg3)';
+    clearTimeout(setButtons._autoTimer);
+  }
 }
 
 window.addEventListener('unhandledrejection', function(e) {
