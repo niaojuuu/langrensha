@@ -150,6 +150,28 @@ input:focus,select:focus{border-color:var(--accent)}
 <div class="night-overlay" id="nightOverlay"></div>
 
 <script>
+// ============ 全局异常恢复 ============
+window.addEventListener('unhandledrejection', function(e) {
+  var msg = (e.reason && e.reason.message) || String(e.reason);
+  console.error('Game error:', e.reason);
+  try {
+    var el = document.getElementById('gameAction');
+    if (el) {
+      el.style.display = '';
+      el.innerHTML = '<h3 style="color:var(--danger)">⚠️ 游戏遇到异常</h3><p>' +
+        String(msg).replace(/</g,'&lt;') + '</p>';
+    }
+    var btns = document.getElementById('actionButtons');
+    if (btns) {
+      btns.innerHTML = '';
+      var btn = document.createElement('button');
+      btn.textContent = '重新开始';
+      btn.addEventListener('click', function() { location.reload(); });
+      btns.appendChild(btn);
+    }
+  } catch (ignored) { /* prevent infinite loops */ }
+});
+
 // ============ 游戏常量 ============
 const ROLES = ['狼人','狼人','狼人','狼人','预言家','女巫','猎人','守卫','平民','平民','平民','平民'];
 const ROLE_ICONS = {'狼人':'🐺','预言家':'🔮','女巫':'🧙‍♀️','猎人':'🏹','守卫':'🛡️','平民':'👤'};
@@ -453,12 +475,14 @@ async function phaseGuard() {
 function waitPlayerSelect(excludeIds, confirmText, allowSkip, skipText) {
   return new Promise(function(resolve) {
     var chosen = -1;
+    var confirmBtn = null;
+
     function doRender(sel) {
       renderPlayers({
         selectable: true,
         exclude: excludeIds,
         selected: sel >= 0 ? [sel] : [],
-        onSelect: function(id) { chosen = id; doRender(id); }
+        onSelect: function(id) { chosen = id; doRender(id); if (confirmBtn) confirmBtn.disabled = false; }
       });
     }
     doRender(-1);
@@ -466,6 +490,7 @@ function waitPlayerSelect(excludeIds, confirmText, allowSkip, skipText) {
     var btns = [{
       text: confirmText || '确认',
       cls: 'success',
+      disabled: true,
       onClick: function() { if (chosen >= 0) resolve(chosen); else return false; }
     }];
     if (allowSkip) {
@@ -476,6 +501,7 @@ function waitPlayerSelect(excludeIds, confirmText, allowSkip, skipText) {
       });
     }
     setButtons(btns);
+    confirmBtn = document.getElementById('actionButtons').querySelector('button');
   });
 }
 
@@ -647,7 +673,10 @@ async function phaseSeer() {
     }
     setAction('<h3>🔮 预言家 ' + esc(seer.name) + '，请选择查验目标</h3>' + histHtml);
 
-    var chosen = await waitPlayerSelect([seer.id], '确认查验');
+    var alreadyChecked = G.seerChecked.map(function(c) { return c.id; })
+      .filter(function(id) { return G.players[id].alive; });
+    var seerExclude = [seer.id].concat(alreadyChecked);
+    var chosen = await waitPlayerSelect(seerExclude, '确认查验');
     var target = G.players[chosen];
     var isWolf = target.role === '狼人';
     G.seerChecked.push({ id: chosen, isWolf: isWolf });
@@ -724,6 +753,12 @@ async function startDay() {
   renderPlayers({});
 
   setButtons([{ text: '继续', cls: 'success', onClick: async function() {
+    // 夜亡者遗言
+    for (var i = 0; i < G.pendingDeaths.length; i++) {
+      var dp = G.players[G.pendingDeaths[i]];
+      await lastWordsPhase(dp);
+    }
+
     // 猎人结算
     for (var i = 0; i < G.pendingDeaths.length; i++) {
       var p = G.players[G.pendingDeaths[i]];
@@ -926,11 +961,11 @@ async function phaseVote() {
   var alivePlayers = alive();
   var humanAlive = alivePlayers.filter(function(p) { return !p.isAI; });
 
-  // AI先投票
+  // AI先投票（狼人协同投票）
   var votes = {};
   alivePlayers.forEach(function(p) {
     if (p.isAI) {
-      votes[p.id] = aiVote(p);
+      votes[p.id] = aiVote(p, votes);
     }
   });
 
@@ -1019,11 +1054,17 @@ async function phaseVote() {
 }
 
 // AI投票逻辑
-function aiVote(player) {
+function aiVote(player, existingVotes) {
   var others = alive().filter(function(p) { return p.id !== player.id; });
   if (others.length === 0) return -1;
 
   if (player.role === '狼人') {
+    if (existingVotes) {
+      var wolfAllyVote = Object.keys(existingVotes).filter(function(vid) {
+        return G.players[parseInt(vid)].role === '狼人' && existingVotes[vid] >= 0;
+      });
+      if (wolfAllyVote.length > 0) return existingVotes[wolfAllyVote[0]];
+    }
     var nonWolves = others.filter(function(p) { return p.role !== '狼人'; });
     if (nonWolves.length > 0) return pick(nonWolves).id;
     return pick(others).id;
