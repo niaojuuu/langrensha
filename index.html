@@ -57,6 +57,7 @@ input:focus,select:focus{border-color:var(--accent)}
 .wolf-info{background:#3a1a1a;border:1px solid #633;border-radius:8px;padding:10px;margin:10px 0;font-size:.9em}
 .hidden-content{filter:blur(15px);user-select:none;pointer-events:none;transition:filter .3s}
 .hidden-content.revealed{filter:none;user-select:auto;pointer-events:auto}
+.speech-container{max-height:50vh;overflow-y:auto;width:100%;max-width:520px;padding:5px}
 .speech-bubble{background:var(--bg2);border-radius:12px;padding:15px 20px;margin:8px 0;max-width:500px;width:100%;position:relative;line-height:1.5;text-align:left}
 .speech-bubble .speaker{color:var(--gold);font-weight:bold;margin-bottom:5px}
 .vote-result{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0}
@@ -554,7 +555,7 @@ async function phaseWitch() {
     await delay(1000);
     var isSelfTargeted = G.wolfKillTarget === witch.id;
     var saveChance = isSelfTargeted ? 1.0 : (G.day === 1 ? 0.8 : 0.35);
-    if (canSave && G.wolfKillTarget >= 0 && Math.random() < saveChance) {
+    if (canSave && Math.random() < saveChance) {
       G.witchSaved = true;
       G.wolfKillTarget = -1;
     } else if (canPoison && G.day >= 2 && Math.random() < 0.3) {
@@ -602,7 +603,7 @@ function humanWitchAction(witch, canSave, canPoison) {
       if (canPoison) {
         btns.push({
           text: '使用毒药', cls: '',
-          onClick: function() { showPoisonSelect(); }
+          onClick: function() { showPoisonSelect(); return false; }
         });
       }
       btns.push({
@@ -633,7 +634,7 @@ function humanWitchAction(witch, canSave, canPoison) {
           G.witchPoisoned = true;
           resolve();
         }},
-        { text: '返回', cls: 'secondary', onClick: function() { showMainMenu(); }}
+        { text: '返回', cls: 'secondary', onClick: function() { showMainMenu(); return false; }}
       ]);
     }
 
@@ -869,7 +870,7 @@ async function phaseSpeech() {
     }
   });
 
-  var speechHtml = '<h3>💬 发言阶段</h3>';
+  var speechHtml = '<h3>💬 发言阶段</h3><div class="speech-container">';
   alivePlayers.forEach(function(p) {
     if (p.isAI) {
       var sp = G.aiSpeeches.find(function(s) { return s.id === p.id; });
@@ -880,6 +881,7 @@ async function phaseSpeech() {
         (p.id+1) + '号 ' + esc(p.name) + '</div>（真人玩家，请口头发言）</div>';
     }
   });
+  speechHtml += '</div>';
 
   setAction(speechHtml);
   renderPlayers({});
@@ -1116,10 +1118,7 @@ function showResult(winner) {
   });
 }
 
-window.addEventListener('unhandledrejection', function(e) {
-  console.error('Unhandled game error:', e.reason);
-  document.querySelectorAll('button:disabled').forEach(function(b) { b.disabled = false; });
-});
+
 </script>
 </body>
 </html>
