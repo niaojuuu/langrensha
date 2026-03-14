@@ -559,11 +559,7 @@ async function phaseWitch() {
       G.witchSaved = true;
       G.wolfKillTarget = -1;
     } else if (canPoison && G.day >= 2 && Math.random() < 0.3) {
-      var knownWolves = G.seerChecked
-        .filter(function(c) { return c.isWolf && G.players[c.id].alive && c.id !== witch.id; })
-        .map(function(c) { return G.players[c.id]; });
-      var pool = knownWolves.length > 0 ? knownWolves :
-        alive().filter(function(p) { return p.id !== witch.id && p.id !== G.wolfKillTarget; });
+      var pool = alive().filter(function(p) { return p.id !== witch.id && p.id !== G.wolfKillTarget; });
       if (pool.length > 0) {
         G.witchPoisonTarget = pick(pool).id;
         G.witchPoisoned = true;
@@ -780,10 +776,7 @@ async function hunterShoot(hunter) {
     await delay(800);
     var pool = alive().filter(function(p) { return p.id !== hunter.id; });
     if (pool.length > 0) {
-      var knownWolves = G.seerChecked
-        .filter(function(c) { return c.isWolf && G.players[c.id].alive && c.id !== hunter.id; })
-        .map(function(c) { return G.players[c.id]; });
-      var target = knownWolves.length > 0 ? pick(knownWolves) : pick(pool);
+      var target = pick(pool);
       target.alive = false;
       addPublicLog('猎人 ' + hunter.name + ' 开枪带走了 ' + (target.id+1) + '号 ' + target.name);
       setAction('<h3>🏹 猎人 ' + esc(hunter.name) + ' 发动技能</h3>' +
@@ -807,7 +800,7 @@ async function lastWordsPhase(player) {
   if (player.isAI) {
     var words = generateLastWords(player);
     setAction('<h3>💀 ' + (player.id+1) + '号 ' + esc(player.name) + ' 的遗言</h3>' +
-      '<div class="speech-bubble"><div class="speaker">' + (player.id+1) + '号 ' + esc(player.name) + ' (AI)</div>' + words + '</div>');
+      '<div class="speech-bubble"><div class="speaker">' + (player.id+1) + '号 ' + esc(player.name) + ' (AI)</div>' + esc(words) + '</div>');
     renderPlayers({});
     await new Promise(function(resolve) {
       setButtons([{ text: '继续', cls: 'success', onClick: resolve }]);
@@ -875,7 +868,7 @@ async function phaseSpeech() {
     if (p.isAI) {
       var sp = G.aiSpeeches.find(function(s) { return s.id === p.id; });
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
-        (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + sp.text + '</div>';
+        (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + esc(sp.text) + '</div>';
     } else {
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
         (p.id+1) + '号 ' + esc(p.name) + '</div>（真人玩家，请口头发言）</div>';
