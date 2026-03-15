@@ -598,7 +598,7 @@ function humanWitchAction(witch, canSave, canPoison) {
       if (canPoison) {
         btns.push({
           text: '使用毒药', cls: '',
-          onClick: function() { showPoisonSelect(); }
+          onClick: function() { showPoisonSelect(); return false; }
         });
       }
       btns.push({
@@ -799,7 +799,7 @@ async function lastWordsPhase(player) {
   if (player.isAI) {
     var words = generateLastWords(player);
     setAction('<h3>💀 ' + (player.id+1) + '号 ' + esc(player.name) + ' 的遗言</h3>' +
-      '<div class="speech-bubble"><div class="speaker">' + (player.id+1) + '号 ' + esc(player.name) + ' (AI)</div>' + words + '</div>');
+      '<div class="speech-bubble"><div class="speaker">' + (player.id+1) + '号 ' + esc(player.name) + ' (AI)</div>' + esc(words) + '</div>');
     renderPlayers({});
     await new Promise(function(resolve) {
       setButtons([{ text: '继续', cls: 'success', onClick: resolve }]);
@@ -862,17 +862,18 @@ async function phaseSpeech() {
     }
   });
 
-  var speechHtml = '<h3>💬 发言阶段</h3>';
+  var speechHtml = '<h3>💬 发言阶段</h3><div style="max-height:50vh;overflow-y:auto">';
   alivePlayers.forEach(function(p) {
     if (p.isAI) {
       var sp = G.aiSpeeches.find(function(s) { return s.id === p.id; });
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
-        (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + sp.text + '</div>';
+        (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + esc(sp.text) + '</div>';
     } else {
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
         (p.id+1) + '号 ' + esc(p.name) + '</div>（真人玩家，请口头发言）</div>';
     }
   });
+  speechHtml += '</div>';
 
   setAction(speechHtml);
   renderPlayers({});
