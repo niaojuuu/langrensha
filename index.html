@@ -517,11 +517,7 @@ async function phaseWolf() {
     setAction('<p class="ai-thinking">狼人正在行动<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></p>');
     setButtons([]);
     await delay(1200);
-    // AI策略：优先杀神职
-    var gods = alive().filter(function(p) {
-      return ['预言家','女巫','猎人','守卫'].indexOf(p.role) !== -1;
-    });
-    var pool = gods.length > 0 ? gods : alive().filter(function(p) { return p.role !== '狼人'; });
+    var pool = alive().filter(function(p) { return p.role !== '狼人'; });
     if (pool.length > 0) {
       G.wolfKillTarget = pick(pool).id;
     }
@@ -667,11 +663,22 @@ async function phaseSeer() {
       });
       histHtml += '</div>';
     }
-    setAction('<h3>🔮 预言家 ' + esc(seer.name) + '，请选择查验目标</h3>' + histHtml);
-
     var alreadyChecked = G.seerChecked.map(function(c) { return c.id; })
       .filter(function(id) { return G.players[id].alive; });
     var seerExclude = [seer.id].concat(alreadyChecked);
+    var availableTargets = alive().filter(function(p) { return seerExclude.indexOf(p.id) === -1; });
+
+    if (availableTargets.length === 0) {
+      setAction('<h3>🔮 预言家 ' + esc(seer.name) + '</h3>' +
+        '<p style="color:var(--text2)">所有存活玩家都已查验过，本轮跳过</p>' + histHtml);
+      await new Promise(function(resolve) {
+        setButtons([{ text: '知道了', cls: 'success', onClick: resolve }]);
+      });
+      resolveNight();
+      return;
+    }
+
+    setAction('<h3>🔮 预言家 ' + esc(seer.name) + '，请选择查验目标</h3>' + histHtml);
     var chosen = await waitPlayerSelect(seerExclude, '确认查验');
     var target = G.players[chosen];
     var isWolf = target.role === '狼人';
@@ -756,8 +763,8 @@ async function startDay() {
     }
 
     // 猎人结算
-    for (var i = 0; i < G.pendingDeaths.length; i++) {
-      var p = G.players[G.pendingDeaths[i]];
+    for (var j = 0; j < G.pendingDeaths.length; j++) {
+      var p = G.players[G.pendingDeaths[j]];
       if (p.role === '猎人' && !p.poisoned) {
         await hunterShoot(p);
       }
