@@ -231,7 +231,7 @@ function startGame() {
     const input = document.getElementById('pname' + i);
     names.push(input.value.trim().replace(/[<>"'&]/g, '') || ('玩家' + (i+1)));
   }
-  const aiNames = ['小明','小红','小刚','小丽','阿强','阿花','大壮','小美','老王','小李','阿杰','小云'];
+  const aiNames = ['曹操','刘备','孙权','诸葛亮','关羽','张飞','赵云','周瑜','吕布','貂蝉','司马懿','黄忠'];
   shuffle(aiNames);
 
   const roles = ROLES.slice();
@@ -800,16 +800,22 @@ async function lastWordsPhase(player) {
     var words = generateLastWords(player);
     setAction('<h3>💀 ' + (player.id+1) + '号 ' + esc(player.name) + ' 的遗言</h3>' +
       '<div class="speech-bubble"><div class="speaker">' + (player.id+1) + '号 ' + esc(player.name) + ' (AI)</div>' + esc(words) + '</div>');
+    addPublicLog((player.id+1) + '号 ' + player.name + ' 遗言：' + words);
     renderPlayers({});
     await new Promise(function(resolve) {
       setButtons([{ text: '继续', cls: 'success', onClick: resolve }]);
     });
   } else {
     setAction('<h3>💀 ' + (player.id+1) + '号 ' + esc(player.name) + '，请发表遗言</h3>' +
-      '<p style="color:var(--text2)">请口头发表你的遗言</p>');
+      '<textarea id="humanInput" placeholder="在此输入遗言（也可口头发言后直接跳过）" style="width:100%;max-width:500px;min-height:80px;background:var(--bg2);color:var(--text);border:1px solid #444;border-radius:8px;padding:10px;font-size:1em;resize:vertical;margin-top:10px"></textarea>');
     renderPlayers({});
     await new Promise(function(resolve) {
-      setButtons([{ text: '遗言结束', cls: 'success', onClick: resolve }]);
+      setButtons([{ text: '提交遗言', cls: 'success', onClick: function() {
+        var input = document.getElementById('humanInput');
+        var text = input ? input.value.trim() : '';
+        if (text) addPublicLog((player.id+1) + '号 ' + player.name + ' 遗言：' + text);
+        resolve();
+      }}, { text: '跳过', cls: 'secondary', onClick: resolve }]);
     });
   }
 }
@@ -862,15 +868,37 @@ async function phaseSpeech() {
     }
   });
 
-  var speechHtml = '<h3>💬 发言阶段</h3>';
+  var humanSpeakers = alivePlayers.filter(function(p) { return !p.isAI; });
+  var humanTexts = {};
+
+  for (var hi = 0; hi < humanSpeakers.length; hi++) {
+    var hp = humanSpeakers[hi];
+    setAction('<h3>💬 ' + (hp.id+1) + '号 ' + esc(hp.name) + '，请发言</h3>' +
+      '<textarea id="humanInput" placeholder="在此输入发言内容（也可口头发言后直接跳过）" style="width:100%;max-width:500px;min-height:80px;background:var(--bg2);color:var(--text);border:1px solid #444;border-radius:8px;padding:10px;font-size:1em;resize:vertical;margin-top:10px"></textarea>');
+    renderPlayers({});
+    await new Promise(function(resolve) {
+      var pid = hp.id;
+      setButtons([{ text: '提交发言', cls: 'success', onClick: function() {
+        var input = document.getElementById('humanInput');
+        var text = input ? input.value.trim() : '';
+        if (text) humanTexts[pid] = text;
+        resolve();
+      }}, { text: '跳过', cls: 'secondary', onClick: resolve }]);
+    });
+  }
+
+  var speechHtml = '<h3>💬 发言阶段 · 汇总</h3>';
   alivePlayers.forEach(function(p) {
     if (p.isAI) {
       var sp = G.aiSpeeches.find(function(s) { return s.id === p.id; });
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
         (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + esc(sp.text) + '</div>';
+      addPublicLog((p.id+1) + '号 ' + p.name + '：' + sp.text);
     } else {
+      var ht = humanTexts[p.id];
       speechHtml += '<div class="speech-bubble"><div class="speaker">' +
-        (p.id+1) + '号 ' + esc(p.name) + '</div>（真人玩家，请口头发言）</div>';
+        (p.id+1) + '号 ' + esc(p.name) + '</div>' + (ht ? esc(ht) : '（口头发言）') + '</div>';
+      if (ht) addPublicLog((p.id+1) + '号 ' + p.name + '：' + ht);
     }
   });
 
