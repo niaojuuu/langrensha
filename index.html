@@ -756,8 +756,8 @@ async function startDay() {
     }
 
     // 猎人结算
-    for (var i = 0; i < G.pendingDeaths.length; i++) {
-      var p = G.players[G.pendingDeaths[i]];
+    for (var j = 0; j < G.pendingDeaths.length; j++) {
+      var p = G.players[G.pendingDeaths[j]];
       if (p.role === '猎人' && !p.poisoned) {
         await hunterShoot(p);
       }
