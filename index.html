@@ -159,7 +159,7 @@ window.addEventListener('unhandledrejection', function(e) {
     if (el) {
       el.style.display = '';
       el.innerHTML = '<h3 style="color:var(--danger)">⚠️ 游戏遇到异常</h3><p>' +
-        String(msg).replace(/</g,'&lt;') + '</p>';
+        esc(String(msg)) + '</p>';
     }
     var btns = document.getElementById('actionButtons');
     if (btns) {
@@ -517,11 +517,7 @@ async function phaseWolf() {
     setAction('<p class="ai-thinking">狼人正在行动<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></p>');
     setButtons([]);
     await delay(1200);
-    // AI策略：优先杀神职
-    var gods = alive().filter(function(p) {
-      return ['预言家','女巫','猎人','守卫'].indexOf(p.role) !== -1;
-    });
-    var pool = gods.length > 0 ? gods : alive().filter(function(p) { return p.role !== '狼人'; });
+    var pool = alive().filter(function(p) { return p.role !== '狼人'; });
     if (pool.length > 0) {
       G.wolfKillTarget = pick(pool).id;
     }
@@ -651,6 +647,12 @@ async function phaseSeer() {
     if (pool.length > 0) {
       var checked = pick(pool);
       G.seerChecked.push({ id: checked.id, isWolf: checked.role === '狼人' });
+    } else {
+      var unchecked = alive().filter(function(p) { return p.id !== seer.id; });
+      if (unchecked.length > 0) {
+        var rechecked = pick(unchecked);
+        G.seerChecked.push({ id: rechecked.id, isWolf: rechecked.role === '狼人' });
+      }
     }
     resolveNight();
   } else {
@@ -756,8 +758,8 @@ async function startDay() {
     }
 
     // 猎人结算
-    for (var i = 0; i < G.pendingDeaths.length; i++) {
-      var p = G.players[G.pendingDeaths[i]];
+    for (var j = 0; j < G.pendingDeaths.length; j++) {
+      var p = G.players[G.pendingDeaths[j]];
       if (p.role === '猎人' && !p.poisoned) {
         await hunterShoot(p);
       }
