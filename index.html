@@ -231,7 +231,7 @@ function startGame() {
     const input = document.getElementById('pname' + i);
     names.push(input.value.trim().replace(/[<>"'&]/g, '') || ('玩家' + (i+1)));
   }
-  const aiNames = ['小明','小红','小刚','小丽','阿强','阿花','大壮','小美','老王','小李','阿杰','小云'];
+  const aiNames = ['曹操','刘备','孙权','诸葛亮','关羽','张飞','赵云','吕布','周瑜','司马懿','貂蝉','黄忠'];
   shuffle(aiNames);
 
   const roles = ROLES.slice();
@@ -806,10 +806,18 @@ async function lastWordsPhase(player) {
     });
   } else {
     setAction('<h3>💀 ' + (player.id+1) + '号 ' + esc(player.name) + '，请发表遗言</h3>' +
-      '<p style="color:var(--text2)">请口头发表你的遗言</p>');
+      '<p style="color:var(--text2)">你可以打字或口头发表遗言</p>' +
+      '<textarea id="lastWordsInput" rows="3" style="background:var(--bg2);color:var(--text);border:1px solid #444;padding:10px 15px;border-radius:8px;font-size:1em;width:100%;max-width:400px;outline:none;resize:vertical;margin-top:10px" placeholder="输入遗言内容（可选）..."></textarea>');
     renderPlayers({});
     await new Promise(function(resolve) {
-      setButtons([{ text: '遗言结束', cls: 'success', onClick: resolve }]);
+      setButtons([{ text: '遗言结束', cls: 'success', onClick: function() {
+        var input = document.getElementById('lastWordsInput');
+        var words = input ? input.value.trim() : '';
+        if (words) {
+          addPublicLog((player.id+1) + '号 ' + player.name + ' 的遗言：' + words);
+        }
+        resolve();
+      } }]);
     });
   }
 }
@@ -848,6 +856,50 @@ function generateLastWords(player) {
   return pick(pool);
 }
 
+function showAllSpeeches(alivePlayers) {
+  var speechHtml = '<h3>💬 发言阶段</h3>';
+  alivePlayers.forEach(function(p) {
+    if (p.isAI) {
+      var sp = G.aiSpeeches.find(function(s) { return s.id === p.id; });
+      speechHtml += '<div class="speech-bubble"><div class="speaker">' +
+        (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + esc(sp.text) + '</div>';
+    } else {
+      var typed = G.humanSpeeches[p.id] || '';
+      speechHtml += '<div class="speech-bubble"><div class="speaker">' +
+        (p.id+1) + '号 ' + esc(p.name) + '</div>' +
+        (typed ? esc(typed) : '<span style="color:var(--text2)">（未输入发言）</span>') + '</div>';
+    }
+  });
+  setAction(speechHtml);
+  renderPlayers({});
+  setButtons([{ text: '进入投票', cls: 'success', onClick: function() { return phaseVote(); } }]);
+}
+
+async function humanSpeechPhase(humanSpeakers, alivePlayers) {
+  for (var i = 0; i < humanSpeakers.length; i++) {
+    var hp = humanSpeakers[i];
+    await new Promise(function(resolve) {
+      var pid = hp.id;
+      setAction('<h3>💬 ' + esc(hp.name) + '，请输入你的发言</h3>' +
+        '<p style="color:var(--text2)">你也可以口头发言后直接跳过</p>' +
+        '<textarea id="speechInput" rows="3" style="background:var(--bg2);color:var(--text);border:1px solid #444;padding:10px 15px;border-radius:8px;font-size:1em;width:100%;max-width:400px;outline:none;resize:vertical;margin-top:10px" placeholder="输入你的发言内容..."></textarea>');
+      renderPlayers({});
+      setButtons([
+        { text: '提交发言', cls: 'success', onClick: function() {
+          var input = document.getElementById('speechInput');
+          G.humanSpeeches[pid] = input ? input.value.trim() : '';
+          resolve();
+        }},
+        { text: '跳过', cls: 'secondary', onClick: function() {
+          G.humanSpeeches[pid] = '';
+          resolve();
+        }}
+      ]);
+    });
+  }
+  showAllSpeeches(alivePlayers);
+}
+
 // -- 发言阶段 --
 async function phaseSpeech() {
   var alivePlayers = alive();
@@ -862,21 +914,14 @@ async function phaseSpeech() {
     }
   });
 
-  var speechHtml = '<h3>💬 发言阶段</h3>';
-  alivePlayers.forEach(function(p) {
-    if (p.isAI) {
-      var sp = G.aiSpeeches.find(function(s) { return s.id === p.id; });
-      speechHtml += '<div class="speech-bubble"><div class="speaker">' +
-        (p.id+1) + '号 ' + esc(p.name) + ' (AI)</div>' + esc(sp.text) + '</div>';
-    } else {
-      speechHtml += '<div class="speech-bubble"><div class="speaker">' +
-        (p.id+1) + '号 ' + esc(p.name) + '</div>（真人玩家，请口头发言）</div>';
-    }
-  });
+  var humanSpeakers = alivePlayers.filter(function(p) { return !p.isAI; });
+  G.humanSpeeches = {};
 
-  setAction(speechHtml);
-  renderPlayers({});
-  setButtons([{ text: '进入投票', cls: 'success', onClick: function() { return phaseVote(); } }]);
+  if (humanSpeakers.length > 0) {
+    await humanSpeechPhase(humanSpeakers, alivePlayers);
+  } else {
+    showAllSpeeches(alivePlayers);
+  }
 }
 
 // AI发言生成
